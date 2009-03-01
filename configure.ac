@@ -5,11 +5,15 @@ AC_ERLANG_NEED_ERLC
 AC_ERLANG_NEED_ERL
 
 ERLCFLAGS="$ERLCFLAGS -I $prefix/lib/ejabberd/include\
+ -I $prefix/lib/ejabberd/include/web\
  -pz $prefix/lib/ejabberd/ebin"
 ERLFLAGS="$ERLFLAGS -pz $prefix/lib/ejabberd/ebin"
 
 ERL_CHECK_HEADER(ejabberd.hrl, [], 
 			     [AC_MSG_ERROR([ejabberd.hrl is required.  Make sure PREFIX is the same as the PREFIX at which ejabberd is installed.])])
+
+ERL_CHECK_HEADER(ejabberd_http.hrl, [], 
+			     [AC_MSG_ERROR([ejabberd_http.hrl is required.  Make sure PREFIX is the same as the PREFIX at which ejabberd is installed.])])
 
 ERL_CHECK_HEADER(jlib.hrl, [], 
 			     [AC_MSG_ERROR([jlib.hrl is required.  Make sure PREFIX is the same as the PREFIX at which ejabberd is installed.])])
