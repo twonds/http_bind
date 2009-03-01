@@ -1,0 +1,64 @@
+\makesubsection{modhttpbind}{\modhttpbind{}}
+\ind{modules!\modhttpbind{}}\ind{modhttpbind}
+
+This module implements XMPP over Bosh (formerly known as HTTP Binding)
+as defined in \xepref{0124} and \xepref{0206}.
+It extends ejabberd's built in HTTP service with a configurable
+resource at which this service will be hosted.
+
+To use HTTP-Binding, enable the module:
+\begin{verbatim}
+{modules,
+ [
+  ...
+  {mod_http_bind, []},
+  ...
+]}.
+\end{verbatim}
+and add \verb|http_bind| in the HTTP service. For example:
+\begin{verbatim}
+{listen, 
+ [
+  ...
+  {5280, ejabberd_http, [
+                         http_bind,
+                         http_poll,
+                         web_admin
+                        ]
+  },
+  ...
+]}.
+\end{verbatim}
+With this configuration, the module will serve the requests sent to 
+\verb|http://example.org:5280/http-bind/|
+Remember that this page is not designed to be used by web browsers,
+it is used by Jabber clients that support XMPP over Bosh.
+
+If you want to set the service in a different URI path or use a different module, 
+you can configure it manually using the option \verb|request_handlers|. 
+For example:
+\begin{verbatim}
+{listen, 
+ [
+  ...
+  {5280, ejabberd_http, [
+                         {request_handlers, [{["http-bind"], mod_http_bind}]},
+                         http_poll,
+                         web_admin
+                        ]
+  },
+  ...
+]}.
+\end{verbatim}
+
+The maximum inactivity period is by default 30 seconds.
+This can be configured with the module option \term{max\_inactivity}.
+For example, to set 50 seconds:
+\begin{verbatim}
+{modules,
+ [
+  ...
+  {mod_http_bind, [ {max_inactivity, 50} ]},
+  ...
+]}.
+\end{verbatim}
