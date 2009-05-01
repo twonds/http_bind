@@ -4,7 +4,7 @@
 %%% Purpose : Implements XMPP over BOSH (XEP-0205) (formerly known as 
 %%%           HTTP Binding)
 %%% Created : 21 Sep 2005 by Stefan Strigler <steve@zeank.in-berlin.de>
-%%% Id      : $Id: ejabberd_http_bind.erl 885 2009-02-14 09:01:54Z badlop $
+%%% Id      : $Id: ejabberd_http_bind.erl 944 2009-04-30 18:03:23Z gcant $
 %%%----------------------------------------------------------------------
 
 -module(ejabberd_http_bind).
@@ -95,7 +95,6 @@
 %%% API
 %%%----------------------------------------------------------------------
 start(Sid, Key, IP) ->
-    setup_database(),
     supervisor:start_child(ejabberd_http_bind_sup, [Sid, Key, IP]).
 
 start_link(Sid, Key, IP) ->
@@ -414,7 +413,6 @@ handle_sync_event({http_get, Rid, Wait, Hold}, From, StateName, StateData) ->
 	    ReqList = StateData#state.req_list,
 	    WaitTimer = erlang:start_timer(Wait * 1000, self(), []),
 	    {next_state, StateName, StateData#state{
-				      input = "",
 				      output = Output,
 				      http_receiver = From,
 				      wait_timer = WaitTimer,
@@ -976,8 +974,8 @@ send_outpacket(#http_bind{pid = FsmRef}, OutPacket) ->
 					case xml:get_subtag(El, "stream:error") of
 					    false ->
 						null;
-					    {xmlelement, _, _, Cond} ->
-						Cond
+					    {xmlelement, _, _, _Cond} = StreamErrorTag ->
+						[StreamErrorTag]
 					end;
                                     {error, _E} ->
                                         null
@@ -994,7 +992,8 @@ send_outpacket(#http_bind{pid = FsmRef}, OutPacket) ->
                                     {200, ?HEADER,
                                      "<body type='terminate' "
                                      "condition='remote-stream-error' "
-                                     "xmlns='"++?NS_HTTP_BIND++"'>" ++
+                                     "xmlns='"++?NS_HTTP_BIND++"' " ++
+                                     "xmlns:stream='"++?NS_STREAM++"'>" ++
                                      elements_to_string(StreamErrCond) ++
                                      "</body>"}
                             end;
@@ -1108,20 +1107,4 @@ check_default_xmlns({xmlelement, Name, Attrs, Els} = El) ->
 	    {xmlelement, Name, [{"xmlns", ?NS_CLIENT} | Attrs], Els};
 	true ->
 	    El
-    end.
-
-setup_database() ->
-    migrate_database(),
-    mnesia:create_table(http_bind,
-			[{ram_copies, [node()]},
-			 {attributes, record_info(fields, http_bind)}]).
-
-migrate_database() ->
-    case catch mnesia:table_info(http_bind, attributes) of
-        [id, pid, to, hold, wait, version] ->
-	    ok;
-        _ ->
-	    %% Since the stored information is not important, instead
-	    %% of actually migrating data, let's just destroy the table
-	    mnesia:delete_table(http_bind)
     end.
