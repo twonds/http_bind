@@ -136,8 +136,8 @@ process_request(Data, IP) ->
                     Sid = sha:sha(term_to_binary({now(), make_ref()})),
                     {ok, Pid} = start(Sid, "", IP),
                     ?DEBUG("got pid: ~p", [Pid]),
-		    Wait = get_max_integer("wait", Attrs, ?MAX_WAIT),
-                    Hold = get_max_integer("hold", Attrs, (?MAX_REQUESTS-1)),
+		    Wait = get_attr_max_integer("wait", Attrs, ?MAX_WAIT),
+                    Hold = get_attr_max_integer("hold", Attrs, (?MAX_REQUESTS-1)),
 		    
                     Version = 
                         case catch list_to_float(
@@ -542,8 +542,13 @@ terminate(_Reason, _StateName, StateData) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
+send_http_terminate(Cond) ->
+    {200, ?HEADER, "<body type='terminate' xmlns='"++?NS_HTTP_BIND++"' condition='"++Cond++"'/>"}.
+send_http_terminate() ->
+    {200, ?HEADER, "<body type='terminate' xmlns='"++?NS_HTTP_BIND++"'/>"}.
+
 %% Get an integer value that is less than the max default.
-get_max_integer(Key, Attrs, Default) ->
+get_attr_max_integer(Key, Attrs, Default) ->
     case
 	string:to_integer(
 	  xml:get_attr_s(Key,Attrs))
@@ -766,26 +771,11 @@ handle_http_put_error(Reason, #http_bind{pid=FsmRef, version=Version})
     gen_fsm:sync_send_all_state_event(FsmRef,stop),
     case Reason of
         not_exists ->
-            {200, ?HEADER, 
-             xml:element_to_string(
-               {xmlelement, "body",
-                [{"xmlns", ?NS_HTTP_BIND},
-                 {"type", "terminate"},
-                 {"condition", "item-not-found"}], []})};
+	    send_http_terminate("item-not-found");
         bad_key ->
-            {200, ?HEADER, 
-             xml:element_to_string(
-               {xmlelement, "body",
-                [{"xmlns", ?NS_HTTP_BIND},
-                 {"type", "terminate"},
-                 {"condition", "item-not-found"}], []})};
+	    send_http_terminate("item-not-found");
         polling_too_frequently ->
-            {200, ?HEADER, 
-             xml:element_to_string(
-               {xmlelement, "body",
-                [{"xmlns", ?NS_HTTP_BIND},
-                 {"type", "terminate"},
-                 {"condition", "policy-violation"}], []})}
+	    send_http_terminate("policy-violation")
     end;
 handle_http_put_error(Reason, #http_bind{pid=FsmRef}) ->
     gen_fsm:sync_send_all_state_event(FsmRef,stop),
@@ -811,7 +801,7 @@ prepare_response(#http_bind{id=Sid, wait=Wait, hold=Hold, to=To}=Sess,
 	{ok, empty} ->
             {200, ?HEADER, "<body xmlns='"++?NS_HTTP_BIND++"'/>"};
 	{ok, terminate} ->
-            {200, ?HEADER, "<body type='terminate' xmlns='"++?NS_HTTP_BIND++"'/>"};
+	    send_http_terminate();
 	{ok, OutPacket} ->
             ?DEBUG("Prepare Response OutPacket: ~s", [OutPacket]),
 	    case StreamStart of
@@ -855,9 +845,7 @@ prepare_response(#http_bind{id=Sid, wait=Wait, hold=Hold, to=To}=Sess,
                         end,
 		    if
 			StreamError == true ->
-			    {200, ?HEADER, "<body type='terminate' "
-			     "condition='host-unknown' "
-			     "xmlns='"++?NS_HTTP_BIND++"'/>"};
+			    send_http_terminate("host-unknown");
 			true ->
                             BOSH_attribs = 
                                 [{"authid", AuthID},
@@ -893,9 +881,9 @@ prepare_response(#http_bind{id=Sid, wait=Wait, hold=Hold, to=To}=Sess,
 		    end
 	    end;
 	{'EXIT', {shutdown, _}} ->
-            {200, ?HEADER, "<body type='terminate' condition='system-shutdown' xmlns='"++?NS_HTTP_BIND++"'/>"};
+	    send_http_terminate("system-shutdown");
 	{'EXIT', _Reason} ->
-            {200, ?HEADER, "<body type='terminate' xmlns='"++?NS_HTTP_BIND++"'/>"}
+	    send_http_terminate()
     end.
 
 http_get(#http_bind{pid = FsmRef, wait = Wait, hold = Hold}, Rid) ->
