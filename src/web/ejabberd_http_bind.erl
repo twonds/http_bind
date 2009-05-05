@@ -128,9 +128,7 @@ process_request(Data, IP) ->
 	{ok, {"", Rid, Attrs, Payload}} ->
 	    case xml:get_attr_s("to",Attrs) of
                 "" ->
-		    {200, ?HEADER, "<body type='terminate' "
-		     "condition='improper-addressing' "
-		     "xmlns='" ++ ?NS_HTTP_BIND ++ "'/>"};
+		    send_http_terminate("improper-addressing");
                 XmppDomain ->
                     %% create new session
                     Sid = sha:sha(term_to_binary({now(), make_ref()})),
