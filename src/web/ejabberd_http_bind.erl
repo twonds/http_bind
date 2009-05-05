@@ -971,10 +971,6 @@ hex([H|T]) ->
 	end,
 	[A,B|hex(T)].
 
-elements_to_string([]) ->
-    [];
-elements_to_string([El | Els]) ->
-    xml:element_to_string(El) ++ elements_to_string(Els).
 
 %% @spec (To, Default::integer()) -> integer()
 %% where To = [] | {Host::string(), Version::string()}
@@ -997,11 +993,3 @@ remove_tag_attr(Attr, El) ->
             El
     end.
 
-check_default_xmlns({xmlelement, Name, Attrs, Els} = El) ->
-    EXmlns = xml:get_tag_attr_s("xmlns", El),
-    if 
-	EXmlns == "" ->
-	    {xmlelement, Name, [{"xmlns", ?NS_CLIENT} | Attrs], Els};
-	true ->
-	    El
-    end.
