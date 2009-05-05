@@ -547,6 +547,28 @@ send_http_terminate(Cond) ->
 send_http_terminate() ->
     {200, ?HEADER, "<body type='terminate' xmlns='"++?NS_HTTP_BIND++"'/>"}.
 
+%% clean up elements and create a payload string
+create_payload(Els) ->
+    FixedEls = 
+	lists:filter(
+	  fun(I) -> 
+		  case I of 
+		      {xmlelement, _, _, _} ->
+			  EXmlns = xml:get_tag_attr_s("xmlns",I),
+			  if 
+			      EXmlns == ?NS_CLIENT ->
+				  remove_tag_attr("xmlns",I);
+			      true ->
+				  ok
+			  end,
+			  true;
+		      _ ->
+			  false
+		  end
+	  end, Els),
+    [xml:element_to_string(E) || 
+	E <- FixedEls].
+    
 %% Get an integer value that is less than the max default.
 get_attr_max_integer(Key, Attrs, Default) ->
     case
@@ -921,26 +943,7 @@ parse_request(Data) ->
                         {'EXIT', _} ->
                             {error, bad_request};
                         Rid ->
-                            FixedEls = 
-                                lists:filter(
-                                  fun(I) -> 
-                                          case I of 
-                                              {xmlelement, _, _, _} ->
-						  EXmlns = xml:get_tag_attr_s("xmlns",I),
-						  if 
-						      EXmlns == ?NS_CLIENT ->
-							  remove_tag_attr("xmlns",I);
-						      true ->
-							  ok
-						  end,
-                                                  true;
-                                              _ ->
-                                                  false
-                                          end
-                                  end, Els),
-
-                            Payload = [xml:element_to_string(E) || 
-                                          E <- FixedEls],
+			    Payload = create_payload(Els),
                             Sid = xml:get_attr_s("sid",Attrs),
                             {ok, {Sid, Rid, Attrs, Payload}}
                     end
