@@ -552,7 +552,7 @@ get_max_integer(Key, Attrs, Default) ->
 	    Default;
 	{Val, _} ->
 	    if 
-		(CHold > Default) ->
+		(Val > Default) ->
 		    Default;
 		true ->
 		    Val
