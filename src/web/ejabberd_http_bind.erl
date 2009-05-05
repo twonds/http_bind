@@ -926,21 +926,19 @@ parse_request(Data) ->
                                   fun(I) -> 
                                           case I of 
                                               {xmlelement, _, _, _} ->
+						  EXmlns = xml:get_tag_attr_s("xmlns",I),
+						  if 
+						      EXmlns == ?NS_CLIENT ->
+							  remove_tag_attr("xmlns",I);
+						      true ->
+							  ok
+						  end,
                                                   true;
                                               _ ->
                                                   false
                                           end
                                   end, Els),
-                            lists:map(
-                              fun(E) ->
-                                      EXmlns = xml:get_tag_attr_s("xmlns",E),
-                                      if 
-                                          EXmlns == ?NS_CLIENT ->
-                                              remove_tag_attr("xmlns",E);
-                                          true ->
-                                              ok
-                                      end
-                              end, FixedEls),
+
                             Payload = [xml:element_to_string(E) || 
                                           E <- FixedEls],
                             Sid = xml:get_attr_s("sid",Attrs),
