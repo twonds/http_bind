@@ -820,11 +820,13 @@ prepare_response(#http_bind{id=Sid, wait=Wait, hold=Hold, to=To}=Sess,
 	{ok, terminate} ->
             {200, ?HEADER, "<body type='terminate' xmlns='"++?NS_HTTP_BIND++"'/>"};
 	{ok, OutPacket} ->
-            ?DEBUG("OutPacket: ~s", [OutPacket]),
+            ?DEBUG("Prepare Response OutPacket: ~s", [OutPacket]),
 	    case StreamStart of
                 false ->
 		    send_outpacket(Sess, OutPacket);
 		true ->
+		    %% NOTE: Why did we parse the string here?
+		    %% taking out till we find out.
 		    OutEls = 
                         case xml_stream:parse_element(
                                OutPacket++"</stream:stream>") of
@@ -915,97 +917,11 @@ send_outpacket(#http_bind{pid = FsmRef}, OutPacket) ->
             gen_fsm:sync_send_all_state_event(FsmRef,stop),
 	    {200, ?HEADER, "<body xmlns='"++?NS_HTTP_BIND++"'/>"};
 	_ ->
-	    case xml_stream:parse_element("<body>" 
-					  ++ OutPacket
-					  ++ "</body>") 
-		of
-		El when element(1, El) == xmlelement ->
-		    {xmlelement, _, _, OEls} = El,
-		    TypedEls = [check_default_xmlns(OEl) ||
-				   OEl <- OEls],
-		    ?DEBUG(" --- outgoing data --- ~n~s~n --- END --- ~n",
-			   [xml:element_to_string(
-			      {xmlelement,"body",
-			       [{"xmlns",
-				 ?NS_HTTP_BIND}],
-			       TypedEls})]
-			  ),
-		    {200, ?HEADER,
-		     xml:element_to_string(
-		       {xmlelement,"body",
-			[{"xmlns",
-			  ?NS_HTTP_BIND}],
-			TypedEls})};
-		{error, _E} ->
-		    OutEls = case xml_stream:parse_element(
-                                    OutPacket++"</stream:stream>") of
-                                 SEl when element(1, SEl) == xmlelement ->
-                                     {xmlelement, _, _OutAttrs, SEls} = SEl,
-                                     StreamError = false,
-                                     case SEls of
-                                         [] ->
-                                             [];
-                                         [{xmlelement, 
-                                           "stream:features", 
-                                           StreamAttribs, StreamEls} | 
-                                          StreamTail] ->
-                                             TypedTail = 
-                                                 [check_default_xmlns(OEl) ||
-						     OEl <- StreamTail],
-                                             [{xmlelement, 
-                                               "stream:features", 
-                                               [{"xmlns:stream",
-                                                 ?NS_STREAM}] ++ 
-                                               StreamAttribs, StreamEls}] ++ 
-                                                 TypedTail;
-                                         Xml ->
-                                             Xml
-                                     end;
-                                 {error, _} ->
-                                     StreamError = true,
-                                     []
-                             end,
-                    if
-                        StreamError ->
-                            StreamErrCond = 
-                                case xml_stream:parse_element(
-                                       "<stream:stream>" ++ OutPacket) of
-                                    El when element(1, El) == xmlelement ->
-					case xml:get_subtag(El, "stream:error") of
-					    false ->
-						null;
-					    {xmlelement, _, _, _Cond} = StreamErrorTag ->
-						[StreamErrorTag]
-					end;
-                                    {error, _E} ->
-                                        null
-                                end,
-                            gen_fsm:sync_send_all_state_event(FsmRef,
-                                                              stop),
-                            case StreamErrCond of
-                                null ->
-                                    {200, ?HEADER,
-                                     "<body type='terminate' "
-                                     "condition='internal-server-error' "
-                                     "xmlns='"++?NS_HTTP_BIND++"'/>"};
-                                _ ->
-                                    {200, ?HEADER,
-                                     "<body type='terminate' "
-                                     "condition='remote-stream-error' "
-                                     "xmlns='"++?NS_HTTP_BIND++"' " ++
-                                     "xmlns:stream='"++?NS_STREAM++"'>" ++
-                                     elements_to_string(StreamErrCond) ++
-                                     "</body>"}
-                            end;
-                        true ->
-                            {200, ?HEADER,
-                             xml:element_to_string(
-                               {xmlelement,"body",
-                                [{"xmlns",
-                                  ?NS_HTTP_BIND}],
-                                OutEls})}
-                    end
-	    end
+	    Body = io_lib:format("<body xmlns=\"~s\" >",[?NS_HTTP_BIND]),
+	    ?DEBUG(" --- send outpacket --- ~n~p~n --- END --- ~n", [Body ++ OutPacket ++ "</body>"]),
+	    {200, ?HEADER,
+	     Body ++ OutPacket ++ "</body>"
+	    }
     end.
 
 parse_request(Data) ->
