@@ -136,33 +136,9 @@ process_request(Data, IP) ->
                     Sid = sha:sha(term_to_binary({now(), make_ref()})),
                     {ok, Pid} = start(Sid, "", IP),
                     ?DEBUG("got pid: ~p", [Pid]),
-                    Wait = case
-                               string:to_integer(xml:get_attr_s("wait",Attrs))
-                               of
-                               {error, _} ->
-                                   ?MAX_WAIT;
-                               {CWait, _} ->
-                                   if 
-                                       (CWait > ?MAX_WAIT) ->
-                                           ?MAX_WAIT;
-                                       true ->
-                                           CWait
-                                   end
-                           end,
-                    Hold = case
-                               string:to_integer(
-                                 xml:get_attr_s("hold",Attrs))
-                               of
-                               {error, _} ->
-                                   (?MAX_REQUESTS - 1);
-                               {CHold, _} ->
-                                   if 
-                                       (CHold > (?MAX_REQUESTS - 1)) ->
-                                           (?MAX_REQUESTS - 1);
-                                       true ->
-                                           CHold
-                                   end
-                           end,
+		    Wait = get_max_integer("wait", Attrs, ?MAX_WAIT),
+                    Hold = get_max_integer("hold", Attrs, (?MAX_REQUESTS-1)),
+		    
                     Version = 
                         case catch list_to_float(
                                      xml:get_attr_s("ver", Attrs)) of
@@ -566,6 +542,23 @@ terminate(_Reason, _StateName, StateData) ->
 %%% Internal functions
 %%%----------------------------------------------------------------------
 
+%% Get an integer value that is less than the max default.
+get_max_integer(Key, Attrs, Default) ->
+    case
+	string:to_integer(
+	  xml:get_attr_s(Key,Attrs))
+	of
+	{error, _} ->
+	    Default;
+	{Val, _} ->
+	    if 
+		(CHold > Default) ->
+		    Default;
+		true ->
+		    Val
+	    end
+    end.
+
 %% PUT / Get processing:
 process_http_put({http_put, Rid, Attrs, Payload, Hold, StreamTo, IP},
 		 StateName, StateData, RidAllow) ->
@@ -825,8 +818,8 @@ prepare_response(#http_bind{id=Sid, wait=Wait, hold=Hold, to=To}=Sess,
                 false ->
 		    send_outpacket(Sess, OutPacket);
 		true ->
-		    %% NOTE: Why did we parse the string here?
-		    %% taking out till we find out.
+		    %% FIXME - there has to be a better way to do this, we should at least
+		    %% remove the extra serialization
 		    OutEls = 
                         case xml_stream:parse_element(
                                OutPacket++"</stream:stream>") of
@@ -918,7 +911,6 @@ send_outpacket(#http_bind{pid = FsmRef}, OutPacket) ->
 	    {200, ?HEADER, "<body xmlns='"++?NS_HTTP_BIND++"'/>"};
 	_ ->
 	    Body = io_lib:format("<body xmlns=\"~s\" >",[?NS_HTTP_BIND]),
-	    ?DEBUG(" --- send outpacket --- ~n~p~n --- END --- ~n", [Body ++ OutPacket ++ "</body>"]),
 	    {200, ?HEADER,
 	     Body ++ OutPacket ++ "</body>"
 	    }
