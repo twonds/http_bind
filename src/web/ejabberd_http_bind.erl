@@ -173,30 +173,24 @@ process_request(Data, IP) ->
             {400, ?HEADER, ""}
     end.
 
+get_integer_attr(Attr, Attrs, Max) ->
+    case string:to_integer(xml:get_attr_s(Attr, Attrs)) of
+	{error, _} ->
+	    Max;
+	{Val, _} ->
+	    if
+		(CWait > Max) ->
+		    Max;
+		true ->
+		    Val
+	    end
+    end.
+
 handle_session_start(Pid, XmppDomain, Sid, Rid, Attrs, Payload, IP) ->
     ?DEBUG("got pid: ~p", [Pid]),
-    Wait = case string:to_integer(xml:get_attr_s("wait",Attrs)) of
-	       {error, _} ->
-		   ?MAX_WAIT;
-	       {CWait, _} ->
-		   if
-		       (CWait > ?MAX_WAIT) ->
-			   ?MAX_WAIT;
-		       true ->
-			   CWait
-		   end
-	   end,
-    Hold = case string:to_integer(xml:get_attr_s("hold",Attrs)) of
-	       {error, _} ->
-		   (?MAX_REQUESTS - 1);
-	       {CHold, _} ->
-		   if
-		       (CHold > (?MAX_REQUESTS - 1)) ->
-			   (?MAX_REQUESTS - 1);
-		       true ->
-			   CHold
-		   end
-	   end,
+    Wait = get_integer_attr("wait", Attrs, ?MAX_WAIT),
+    Hold = get_integer_attr("hold", Attrs,  (?MAX_REQUESTS-1)),
+    
     Version =
 	case catch list_to_float(
 		     xml:get_attr_s("ver", Attrs)) of
@@ -1014,22 +1008,10 @@ parse_request(Data) ->
                                                   false
                                           end
                                   end, Els),
-			    %% MR: I commented this code, because it is not used.
-%%                             lists:map(
-%%                               fun(E) ->
-%%                                       EXmlns = xml:get_tag_attr_s("xmlns",E),
-%%                                       if
-%%                                           EXmlns == ?NS_CLIENT ->
-%%                                               remove_tag_attr("xmlns",E);
-%%                                           true ->
-%%                                               ok
-%%                                       end
-%%                               end, FixedEls),
-                            Payload = [xml:element_to_string(E) || E <- FixedEls],
                             Sid = xml:get_attr_s("sid",Attrs),
 			    %% MR: I do not think we need to extract
 			    %% Sid. We should have it somewhere else:
-                            {ok, {Sid, Rid, Attrs, Payload}}
+                            {ok, {Sid, Rid, Attrs, FixedEls}}
                     end
 	    end;
 	{error, _Reason} ->
