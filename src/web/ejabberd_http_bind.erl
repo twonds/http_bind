@@ -119,6 +119,7 @@ setopts({http_bind, FsmRef, _IP}, Opts) ->
     end.
 
 controlling_process(_Socket, _Pid) ->
+    ?DEBUG("~n ===== Controlling Process ========= ~n ~p ~p",[_Socket, _Pid]), 
     ok.
 
 close({http_bind, FsmRef, _IP}) ->
@@ -179,7 +180,7 @@ get_integer_attr(Attr, Attrs, Max) ->
 	    Max;
 	{Val, _} ->
 	    if
-		(CWait > Max) ->
+		(Val > Max) ->
 		    Max;
 		true ->
 		    Val
@@ -669,7 +670,7 @@ process_http_put({http_put, Rid, Attrs, Payload, Hold, StreamTo, IP},
                                         Payload
                                 end,
                             MaxInactivity = get_max_inactivity(StreamTo, StateData#state.max_inactivity),
-                            ?DEBUG("really sending now: ~s", [SendPacket]),
+                            ?DEBUG("really sending now: ~p ~p", [StateData#state.socket, SendPacket]),
 			    Receiver ! {tcp, StateData#state.socket,
 					list_to_binary(SendPacket)},
 			    Reply = ok,
@@ -983,9 +984,9 @@ send_outpacket(#http_bind{pid = FsmRef}, OutPacket) ->
 
 parse_request(Data) ->
     ?DEBUG("--- incoming data --- ~n~s~n --- END --- ", [Data]),
-    case xml_stream:parse_element(Data) of
-	El when element(1, El) == xmlelement ->
-	    {xmlelement, Name, Attrs, Els} = El,
+    case parse_body(Data) of
+	{El, Payload} when element(1, El) == xmlelement ->
+	    {xmlelement, Name, Attrs, []} = El,
 	    Xmlns = xml:get_attr_s("xmlns",Attrs),
 	    if
 		Name /= "body" ->
@@ -997,26 +998,40 @@ parse_request(Data) ->
                         {'EXIT', _} ->
                             {error, bad_request};
                         Rid ->
-			    %% I guess this is to remove XMLCDATA:
-                            FixedEls =
-                                lists:filter(
-                                  fun(I) ->
-                                          case I of
-                                              {xmlelement, _, _, _} ->
-                                                  true;
-                                              _ ->
-                                                  false
-                                          end
-                                  end, Els),
+			    
                             Sid = xml:get_attr_s("sid",Attrs),
 			    %% MR: I do not think we need to extract
 			    %% Sid. We should have it somewhere else:
-                            {ok, {Sid, Rid, Attrs, FixedEls}}
+                            {ok, {Sid, Rid, Attrs, Payload}}
                     end
 	    end;
 	{error, _Reason} ->
 	    {error, bad_request}
     end.
+
+parse_body(Data) ->
+    Pos  = string:chr(Data, $>),
+    Body = string:substr(Data, 1, Pos),
+    Length = (length(Data)-Pos-length("</body>")),
+    if Length > 0 ->
+	    Rest = string:substr(Data, Pos+1, Length),
+	    ParsedBody = xml_parse_body(string:substr(Body,1, length(Body)-1)++"/>"),
+	    {ParsedBody, Rest};
+       true ->
+	    ParsedBody = xml_parse_body(Body),
+	    {ParsedBody, ""}
+    end.
+    
+xml_parse_body(Body) ->
+    case catch xml_stream:parse_element(Body) of
+	{'EXIT', Exit} ->
+	    {error, Exit};
+	{error, Error} ->
+	    {error, Error};
+	Res ->
+	    Res
+    end.
+
 
 %% Cancel timer and empty message queue.
 cancel_timer(undefined) ->
