@@ -889,27 +889,14 @@ send_outpacket(#http_bind{pid = FsmRef}, OutPacket) ->
             gen_fsm:sync_send_all_state_event(FsmRef,{stop,stream_closed}),
 	    {200, ?HEADER, "<body xmlns='"++?NS_HTTP_BIND++"'/>"};
 	_ ->
-	    case xml_stream:parse_element("<body>"
-					  ++ OutPacket
-					  ++ "</body>")
+	    %%% NOTE - removing parse here, dont know why it is here.
+	    case parse_outpacket(OutPacket) 
 		of
-		El when element(1, El) == xmlelement ->
-		    {xmlelement, _, _, OEls} = El,
-		    TypedEls = [check_default_xmlns(OEl) ||
-				   OEl <- OEls],
-		    ?DEBUG(" --- outgoing data --- ~n~s~n --- END --- ~n",
-			   [xml:element_to_string(
-			      {xmlelement,"body",
-			       [{"xmlns",
-				 ?NS_HTTP_BIND}],
-			       TypedEls})]
-			  ),
-		    {200, ?HEADER,
-		     xml:element_to_string(
-		       {xmlelement,"body",
-			[{"xmlns",
-			  ?NS_HTTP_BIND}],
-			TypedEls})};
+		{ok, Payload} ->
+		    ?DEBUG(" --- outgoing data --- ~n~s~n --- END --- ~n", [Payload]),
+		    
+		    {200, ?HEADER, "<body xmlns='"++?NS_HTTP_BIND++"'>" ++ Payload ++ "</body>"};
+
 		{error, _E} ->
 		    OutEls = case xml_stream:parse_element(
                                     OutPacket++"</stream:stream>") of
@@ -923,15 +910,12 @@ send_outpacket(#http_bind{pid = FsmRef}, OutPacket) ->
                                            "stream:features",
                                            StreamAttribs, StreamEls} |
                                           StreamTail] ->
-                                             TypedTail =
-                                                 [check_default_xmlns(OEl) ||
-						     OEl <- StreamTail],
                                              [{xmlelement,
                                                "stream:features",
                                                [{"xmlns:stream",
                                                  ?NS_STREAM}] ++
                                                StreamAttribs, StreamEls}] ++
-                                                 TypedTail;
+                                                 StreamTail;
                                          Xml ->
                                              Xml
                                      end;
@@ -980,6 +964,14 @@ send_outpacket(#http_bind{pid = FsmRef}, OutPacket) ->
                                 OutEls})}
                     end
 	    end
+    end.
+
+parse_outpacket(Packet) ->
+    case string:str(Packet, "</stream:stream>") of 
+	Val when Val > 0 ->
+	    {error, streamend};
+	_ ->
+	    {ok, Packet}
     end.
 
 parse_request(Data) ->
@@ -1063,17 +1055,6 @@ get_max_inactivity({Host, _}, Default) ->
 get_max_inactivity(_, Default) ->
     Default.
 
-%% remove_tag_attr(Attr, {xmlelement, Name, Attrs, Els}) ->
-%%     Attrs1 = lists:keydelete(Attr, 1, Attrs),
-%%     {xmlelement, Name, Attrs1, Els};
-%% remove_tag_attr(Attr, El) ->
-%%     El.
-
-check_default_xmlns({xmlelement, Name, Attrs, Els} = El) ->
-    case xml:get_tag_attr_s("xmlns", El) of
-	"" -> {xmlelement, Name, [{"xmlns", ?NS_CLIENT} | Attrs], Els};
-	_  -> El
-    end.
 
 %% Check that mod_http_bind has been defined in config file.
 %% Print a warning in log file if this is not the case.
