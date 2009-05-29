@@ -136,7 +136,7 @@ process_request(Data, IP) ->
 	{ok, {"", Rid, Attrs, Payload}} ->
 	    case xml:get_attr_s("to",Attrs) of
                 "" ->
-		    ?ERROR_MSG("Session not created (Improper addressing)", []),
+		    ?INFO_MSG("Session not created (Improper addressing)", []),
 		    {200, ?HEADER, "<body type='terminate' "
 		     "condition='improper-addressing' "
 		     "xmlns='" ++ ?NS_HTTP_BIND ++ "'/>"};
@@ -170,7 +170,7 @@ process_request(Data, IP) ->
                        end,
             handle_http_put(Sid, Rid, Attrs, Payload2, StreamStart, IP);
         _ ->
-	    ?ERROR_MSG("Received bad request: ~p", [Data]),
+	    ?INFO_MSG("Received bad request: ~p", [Data]),
             {400, ?HEADER, ""}
     end.
 
@@ -337,7 +337,7 @@ handle_sync_event({stop,stream_closed}, _From, _StateName, StateData) ->
     Reply = ok,
     {stop, normal, Reply, StateData};
 handle_sync_event({stop,Reason}, _From, _StateName, StateData) ->
-    ?ERROR_MSG("Closing bind session ~p - Reason: ~p", [StateData#state.id, Reason]),
+    ?INFO_MSG("Closing bind session ~p - Reason: ~p", [StateData#state.id, Reason]),
     Reply = ok,
     {stop, normal, Reply, StateData};
 
@@ -711,10 +711,10 @@ process_buffered_request(Reply, StateName, StateData) ->
 handle_http_put(Sid, Rid, Attrs, Payload, StreamStart, IP) ->
     case http_put(Sid, Rid, Attrs, Payload, StreamStart, IP) of
         {error, not_exists} ->
-            ?ERROR_MSG("no session associated with sid: ~p", [Sid]),
+            ?INFO_MSG("no session associated with sid: ~p", [Sid]),
             {404, ?HEADER, ""};
         {{error, Reason}, Sess} ->
-            ?ERROR_MSG("Error on HTTP put. Reason: ~p", [Reason]),
+            ?INFO_MSG("Error on HTTP put. Reason: ~p", [Reason]),
             handle_http_put_error(Reason, Sess);
         {{repeat, OutPacket}, Sess} ->
             ?DEBUG("http_put said 'repeat!' ...~nOutPacket: ~p", [OutPacket]),
@@ -770,13 +770,13 @@ handle_http_put_error(Reason, #http_bind{pid=FsmRef}) ->
     gen_fsm:sync_send_all_state_event(FsmRef,{stop, {put_error_no_version, Reason}}),
     case Reason of
         not_exists -> %% bad rid
-	    ?ERROR_MSG("Closing HTTP bind session (Bad rid).", []),
+	    ?INFO_MSG("Closing HTTP bind session (Bad rid).", []),
             {404, ?HEADER, ""};
         bad_key ->
-	    ?ERROR_MSG("Closing HTTP bind session (Bad key).", []),
+	    ?INFO_MSG("Closing HTTP bind session (Bad key).", []),
             {404, ?HEADER, ""};
         polling_too_frequently ->
-	    ?ERROR_MSG("Closing HTTP bind session (User polling too frequently).", []),
+	    ?INFO_MSG("Closing HTTP bind session (User polling too frequently).", []),
             {403, ?HEADER, ""}
     end.
 
