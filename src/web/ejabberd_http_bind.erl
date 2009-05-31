@@ -792,6 +792,7 @@ prepare_response(#http_bind{id=Sid, wait=Wait, hold=Hold, to=To}=Sess,
 	{ok, empty} ->
             {200, ?HEADER, "<body xmlns='"++?NS_HTTP_BIND++"'/>"};
 	{ok, terminate} ->
+	    ?INFO_MSG("Session terminated because it recieved a terminate",[]),
             {200, ?HEADER, "<body type='terminate' xmlns='"++?NS_HTTP_BIND++"'/>"};
 	{ok, OutPacket} ->
             ?DEBUG("OutPacket: ~s", [OutPacket]),
@@ -874,6 +875,7 @@ prepare_response(#http_bind{id=Sid, wait=Wait, hold=Hold, to=To}=Sess,
 	{'EXIT', {shutdown, _}} ->
             {200, ?HEADER, "<body type='terminate' condition='system-shutdown' xmlns='"++?NS_HTTP_BIND++"'/>"};
 	{'EXIT', _Reason} ->
+	    ?INFO_MSG("Session terminated because ~p",[_Reason]),
             {200, ?HEADER, "<body type='terminate' xmlns='"++?NS_HTTP_BIND++"'/>"}
     end.
 
