@@ -24,6 +24,7 @@
 	 send_xml/2,
 	 sockname/1,
 	 peername/1,
+	 setopts/2,
 	 controlling_process/2,
 	 become_controller/2,
 	 custom_receiver/1,
@@ -714,18 +715,6 @@ process_http_put(#http_put{rid = Rid, attrs = Attrs, payload = Payload,
 	    Reply = {error, bad_key},
 	    {reply, Reply, StateName, StateData}
     end.
-
-%% TODO: MREMOND: Removed unused
-%% How to return the actual reply to the HTTP request
-%% From = undefined -> This is not a buffered request, so we can reply
-%% directly
-http_put_reply(undefined, Reply, StateName, StateData) ->
-    {reply, Reply, StateName, StateData};
-%% This is a buffered reply. Send late delayed reply to the actual
-%% HTTP process.
-http_put_reply(From, Reply, StateName, StateData) ->
-    gen_fsm:reply(From, Reply),
-    {next_state, StateName, StateData}.
 
 process_buffered_request(Reply, StateName, StateData) ->
     Rid = StateData#state.rid,
