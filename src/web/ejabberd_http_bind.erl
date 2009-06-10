@@ -694,7 +694,10 @@ process_http_put(#http_put{rid = Rid, attrs = Attrs, payload = Payload,
 			    lists:foreach(
 			      fun(El) ->
 				      gen_fsm:send_event(
-					C2SPid, {xmlstreamelement, El})
+					C2SPid, {xmlstreamelement, El});
+				 ({xmlstreamend, End}) ->
+				      gen_fsm:send_event(
+					C2SPid, {xmlstreamend, End})
 			      end, Payload),
 			    Reply = ok,
 			    process_buffered_request(Reply, StateName,
