@@ -382,10 +382,10 @@ handle_sync_event(#http_put{rid = Rid},
     ?DEBUG("Shaper timer for RID ~p: ~p", [Rid, Reply]),
     {reply, Reply, StateName, StateData};
 
-handle_sync_event(#http_put{rid = Rid, attrs = Attrs,
+handle_sync_event(#http_put{rid = _Rid, attrs = _Attrs,
 			    payload_size = PayloadSize,
-			    hold = Hold} = Request,
-		  From, StateName, StateData) ->
+			    hold = _Hold} = Request,
+		  _From, StateName, StateData) ->
     ?DEBUG("New request: ~p",[Request]),
     %% Updating trafic shaper
     {NewShaperState, NewShaperTimer} =
@@ -692,12 +692,13 @@ process_http_put(#http_put{rid = Rid, attrs = Attrs, payload = Payload,
 
 			    ?DEBUG("really sending now: ~p", [Payload]),
 			    lists:foreach(
-			      fun(El) ->
+			      fun({xmlstreamend, End}) ->
 				      gen_fsm:send_event(
-					C2SPid, {xmlstreamelement, El});
-				 ({xmlstreamend, End}) ->
+					C2SPid, {xmlstreamend, End});
+			      
+				 (El) ->
 				      gen_fsm:send_event(
-					C2SPid, {xmlstreamend, End})
+					C2SPid, {xmlstreamelement, El})			      
 			      end, Payload),
 			    Reply = ok,
 			    process_buffered_request(Reply, StateName,
